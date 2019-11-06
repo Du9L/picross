@@ -103,123 +103,73 @@ let solvePuzzle = function (puzzle) {
                 }
                 // if current cell is OFF, skip to next ON or UNKNOWN cell
                 let state = initial_state[cells_since];
-                if (state == STATE_OFF) {
-                    while (++cells_since < initial_state.length) {
-                        if (initial_state[cells_since] != STATE_OFF) {
-                            return searchFunction(keys_since, cells_since);
-                        }
-                    }
-                    return null;
-                }
-                // if current cell is ON, try to fill the rest of current key
-                if (state == STATE_ON) {
-                    let current_key = keys[keys_since];
-                    if (cells_since + current_key > initial_state.length) {
-                        return null;
-                    }
-                    for (let cell = cells_since; cell < cells_since + current_key; ++cell) {
-                        if (initial_state[cell] == STATE_OFF) {
-                            return null;
-                        }
-                    }
-                    if (cells_since + current_key < initial_state.length && 
-                            initial_state[cells_since + current_key] == STATE_ON) {
-                        return null;
-                    }
-                    let start_point = cells_since + current_key + 1;
-                    if (start_point > initial_state.length) {
-                        -- start_point;
-                    }
-                    let sub_result = searchFunction(keys_since+1, start_point);
-                    if (sub_result === null) {
-                        return null;
-                    }
-                    let ret = {};
-                    // set current key cells
-                    for (let cell = cells_since; cell < cells_since + current_key + 1; ++cell) {
-                        if (cell >= initial_state.length || initial_state[cell] != STATE_UNKNOWN) {
-                            continue;
-                        }
-                        let new_value = (cell == cells_since + current_key) ? STATE_OFF : STATE_ON;
-                        ret[cell] = [new_value];
-                    }
-                    // merge with the sub-result
-                    for (const cell in sub_result) {
-                        if (!sub_result.hasOwnProperty(cell)) {
-                            continue;
-                        }
-                        if (cell in ret) {
-                            for (const val of sub_result[cell]) {
-                                if (!ret[cell].includes(val)) {
-                                    ret[cell].push(val)
-                                }
-                            }
-                        } else {
-                            ret[cell] = sub_result[cell];
-                        }
-                    }
-                    return ret;
-                }
-                // state == UNKNOWN, try two different states and merge the result
                 let ret = null;
-                // - first try OFF
-                let sub_result = searchFunction(keys_since, cells_since+1);
-                if (sub_result !== null) {
-                    ret = sub_result;
-                    ret[cells_since] = [STATE_OFF];
-                }
-                // - then try ON, similar to above
-                let current_key = keys[keys_since];
-                if (cells_since + current_key <= initial_state.length) {
-                    // check if ON is possible
-                    let valid = true;
-                    for (let cell = cells_since; cell < cells_since + current_key; ++cell) {
-                        if (initial_state[cell] == STATE_OFF) {
-                            valid = false;
+                if (state == STATE_OFF || state == STATE_UNKNOWN) {
+                    let start_point = cells_since;
+                    while (++start_point < initial_state.length) {
+                        if (initial_state[start_point] != STATE_OFF) {
+                            ret = searchFunction(keys_since, start_point);
+                            if (ret !== null && state == STATE_UNKNOWN) {
+                                ret[cells_since] = [STATE_OFF];
+                            }
                             break;
                         }
                     }
-                    if (valid && cells_since + current_key < initial_state.length && 
-                            initial_state[cells_since + current_key] == STATE_ON) {
-                        valid = false;
-                    }
-                    if (valid) {
-                        let start_point = cells_since + current_key + 1;
-                        if (start_point > initial_state.length) {
-                            -- start_point;
+                }
+                // if current cell is ON, try to fill the rest of current key
+                if (state == STATE_ON || state == STATE_UNKNOWN) {
+                    let current_key = keys[keys_since];
+                    if (cells_since + current_key <= initial_state.length) {
+                        // check if ON is possible
+                        let valid = true;
+                        for (let cell = cells_since; cell < cells_since + current_key; ++cell) {
+                            if (initial_state[cell] == STATE_OFF) {
+                                valid = false;
+                                break;
+                            }
                         }
-                        let sub_result = searchFunction(keys_since+1, start_point);
-                        if (sub_result !== null) {
-                            if (ret === null) {
-                                ret = {};
+                        if (valid && cells_since + current_key < initial_state.length && 
+                                initial_state[cells_since + current_key] == STATE_ON) {
+                            valid = false;
+                        }
+                        if (valid) {
+                            let start_point = cells_since + current_key + 1;
+                            if (start_point > initial_state.length) {
+                                -- start_point;
                             }
-                            // set current key cells
-                            for (let cell = cells_since; cell < cells_since + current_key + 1; ++cell) {
-                                if (cell >= initial_state.length || initial_state[cell] != STATE_UNKNOWN) {
-                                    continue;
+                            let sub_result = searchFunction(keys_since+1, start_point);
+                            if (sub_result !== null) {
+                                if (ret === null) {
+                                    ret = {};
                                 }
-                                let new_value = (cell == cells_since + current_key) ? STATE_OFF : STATE_ON;
-                                if (cell in ret) {
-                                    if (!ret[cell].includes(new_value)) {
-                                        ret[cell].push(new_value)
+                                // set current key cells
+                                for (let cell = cells_since; cell < cells_since + current_key + 1; ++cell) {
+                                    if (cell >= initial_state.length || initial_state[cell] != STATE_UNKNOWN) {
+                                        continue;
                                     }
-                                } else {
-                                    ret[cell] = [new_value];
-                                }
-                            }
-                            // merge with the sub-result
-                            for (const cell in sub_result) {
-                                if (!sub_result.hasOwnProperty(cell)) {
-                                    continue;
-                                }
-                                if (cell in ret) {
-                                    for (const val of sub_result[cell]) {
-                                        if (!ret[cell].includes(val)) {
-                                            ret[cell].push(val)
+                                    let new_value = (cell == cells_since + current_key) ? STATE_OFF : STATE_ON;
+                                    if (cell in ret) {
+                                        if (!ret[cell].includes(new_value)) {
+                                            ret[cell].push(new_value)
                                         }
+                                    } else {
+                                        ret[cell] = [new_value];
                                     }
-                                } else {
-                                    ret[cell] = sub_result[cell];
+                                }
+                                // merge with the sub-result
+                                for (const cell in sub_result) {
+                                    if (!sub_result.hasOwnProperty(cell)) {
+                                        continue;
+                                    }
+                                    if (cell in ret) {
+                                        for (const val of sub_result[cell]) {
+                                            if (!ret[cell].includes(val)) {
+                                                ret[cell].push(val)
+                                            }
+                                        }
+                                    } else {
+                                        ret[cell] = sub_result[cell];
+                                    }
                                 }
                             }
                         }
