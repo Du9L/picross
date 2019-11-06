@@ -280,14 +280,20 @@ let applySolution = function (solution) {
 
 let addSolveButton = function () {
     let container = $('.controls .control-group').first();
+    $('<div class="custom" />').appendTo(container);
     let button = $('<button>Auto solve</button>');
     button.mouseup(function() {
         let puzzle = loadPuzzle();
         console.info(puzzle);
         let solution = solvePuzzle(puzzle);
         applySolution(solution);
+        let solvedPercent = solution.length * 100 / (puzzle.rows * puzzle.cols)
+        $('<span />').text(
+            'Solved: ' + (solvedPercent.toFixed(2) + "%")
+        ).appendTo('#solverText').delay(2000).fadeOut();
     });
     button.appendTo(container);
+    $('<div id="solverText" />').appendTo(container);
 }
 
 window.addEventListener('load', addSolveButton, false);
