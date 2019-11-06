@@ -1,6 +1,21 @@
+// ==UserScript==
+// @name         picross
+// @namespace    http://du9l.com/
+// @version      0.1
+// @description  picross solver
+// @author       Du9L
+// @match        http://liouh.com/picross2/
+// @grant        none
+// ==/UserScript==
+
+(function() {
+
 "use strict";
 
 let $ = window.jQuery;
+
+const STATE_UNKNOWN = 'UNKNOWN', STATE_ON = 'ON', STATE_OFF = 'OFF';
+const TASK_ROW = 'ROW', TASK_COL = 'COL';
 
 let loadPuzzle = function () {
     let new_puzzle = {
@@ -35,9 +50,106 @@ let loadPuzzle = function () {
     return new_puzzle;
 }
 
+// search function: 
+// [valid solution] {kth cell: [possible states]} | [invalid solution] null = 
+//   search ( keys since X, cells since Y )
+let searchFunction = function (keys_since, cells_since, keys, initial_state) {
+    // edge: no more keys to fulfill, set rest cells to OFF
+    if (keys_since >= keys.length) {
+        let ret = {};
+        for (let cell = cells_since; cell < initial_state.length; ++cell) {
+            if (initial_state[cell] == STATE_UNKNOWN) {
+                ret[cell] = [STATE_OFF];
+            } else if (initial_state[cell] == STATE_ON) {
+                return null;
+            }
+        }
+        return ret;
+    }
+    // edge: no more cells to use, return invalid
+    if (cells_since >= initial_state.length) {
+        return null;
+    }
+    // if current cell is OFF, skip to next ON or UNKNOWN cell
+    let state = initial_state[cells_since];
+    let ret = null;
+    if (state == STATE_OFF || state == STATE_UNKNOWN) {
+        let start_point = cells_since;
+        while (++start_point < initial_state.length) {
+            if (initial_state[start_point] != STATE_OFF) {
+                ret = searchFunction(keys_since, start_point, keys, initial_state);
+                if (ret !== null && state == STATE_UNKNOWN) {
+                    ret[cells_since] = [STATE_OFF];
+                }
+                break;
+            }
+        }
+    }
+    // if current cell is ON, try to fill the rest of current key
+    if (state == STATE_ON || state == STATE_UNKNOWN) {
+        let current_key = keys[keys_since];
+        if (cells_since + current_key <= initial_state.length) {
+            // check if ON is possible
+            let valid = true;
+            for (let cell = cells_since; cell < cells_since + current_key; ++cell) {
+                if (initial_state[cell] == STATE_OFF) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (valid && cells_since + current_key < initial_state.length && 
+                    initial_state[cells_since + current_key] == STATE_ON) {
+                valid = false;
+            }
+            if (valid) {
+                let start_point = cells_since + current_key + 1;
+                if (start_point > initial_state.length) {
+                    -- start_point;
+                }
+                let sub_result = searchFunction(keys_since+1, start_point, keys, initial_state);
+                if (sub_result !== null) {
+                    if (ret === null) {
+                        ret = {};
+                    }
+                    // set current key cells
+                    for (let cell = cells_since; cell < cells_since + current_key + 1; ++cell) {
+                        if (cell >= initial_state.length || initial_state[cell] != STATE_UNKNOWN) {
+                            continue;
+                        }
+                        let new_value = (cell == cells_since + current_key) ? STATE_OFF : STATE_ON;
+                        if (cell in ret) {
+                            if (!ret[cell].includes(new_value)) {
+                                ret[cell].push(new_value)
+                            }
+                        } else {
+                            ret[cell] = [new_value];
+                        }
+                    }
+                    // merge with the sub-result
+                    for (const cell in sub_result) {
+                        if (!sub_result.hasOwnProperty(cell)) {
+                            continue;
+                        }
+                        if (cell in ret) {
+                            for (const val of sub_result[cell]) {
+                                if (!ret[cell].includes(val)) {
+                                    ret[cell].push(val)
+                                }
+                            }
+                        } else {
+                            ret[cell] = sub_result[cell];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return ret;
+}
+// end of search function
+
 let solvePuzzle = function (puzzle) {
     // initial state
-    let STATE_UNKNOWN = 'UNKNOWN', STATE_ON = 'ON', STATE_OFF = 'OFF';
     let state = [];
     for (let r = 0; r < puzzle.rows; ++r) {
         let row_state = [];
@@ -47,7 +159,6 @@ let solvePuzzle = function (puzzle) {
         state.push(row_state);
     }
     // initial queue
-    let TASK_ROW = 'ROW', TASK_COL = 'COL';
     let task_set = new Set();
     let row_tasks = [], col_tasks = [];
     for (let r = 0; r < puzzle.rows; ++r) {
@@ -80,106 +191,9 @@ let solvePuzzle = function (puzzle) {
                 }
                 keys = puzzle.col_keys[row_or_col];
             }
-            
-            // search function: 
-            // [valid solution] {kth cell: [possible states]} | [invalid solution] null = 
-            //   search ( keys since X, cells since Y )
-            let searchFunction = function (keys_since, cells_since) {
-                // edge: no more keys to fulfill, set rest cells to OFF
-                if (keys_since >= keys.length) {
-                    let ret = {};
-                    for (let cell = cells_since; cell < initial_state.length; ++cell) {
-                        if (initial_state[cell] == STATE_UNKNOWN) {
-                            ret[cell] = [STATE_OFF];
-                        } else if (initial_state[cell] == STATE_ON) {
-                            return null;
-                        }
-                    }
-                    return ret;
-                }
-                // edge: no more cells to use, return invalid
-                if (cells_since >= initial_state.length) {
-                    return null;
-                }
-                // if current cell is OFF, skip to next ON or UNKNOWN cell
-                let state = initial_state[cells_since];
-                let ret = null;
-                if (state == STATE_OFF || state == STATE_UNKNOWN) {
-                    let start_point = cells_since;
-                    while (++start_point < initial_state.length) {
-                        if (initial_state[start_point] != STATE_OFF) {
-                            ret = searchFunction(keys_since, start_point);
-                            if (ret !== null && state == STATE_UNKNOWN) {
-                                ret[cells_since] = [STATE_OFF];
-                            }
-                            break;
-                        }
-                    }
-                }
-                // if current cell is ON, try to fill the rest of current key
-                if (state == STATE_ON || state == STATE_UNKNOWN) {
-                    let current_key = keys[keys_since];
-                    if (cells_since + current_key <= initial_state.length) {
-                        // check if ON is possible
-                        let valid = true;
-                        for (let cell = cells_since; cell < cells_since + current_key; ++cell) {
-                            if (initial_state[cell] == STATE_OFF) {
-                                valid = false;
-                                break;
-                            }
-                        }
-                        if (valid && cells_since + current_key < initial_state.length && 
-                                initial_state[cells_since + current_key] == STATE_ON) {
-                            valid = false;
-                        }
-                        if (valid) {
-                            let start_point = cells_since + current_key + 1;
-                            if (start_point > initial_state.length) {
-                                -- start_point;
-                            }
-                            let sub_result = searchFunction(keys_since+1, start_point);
-                            if (sub_result !== null) {
-                                if (ret === null) {
-                                    ret = {};
-                                }
-                                // set current key cells
-                                for (let cell = cells_since; cell < cells_since + current_key + 1; ++cell) {
-                                    if (cell >= initial_state.length || initial_state[cell] != STATE_UNKNOWN) {
-                                        continue;
-                                    }
-                                    let new_value = (cell == cells_since + current_key) ? STATE_OFF : STATE_ON;
-                                    if (cell in ret) {
-                                        if (!ret[cell].includes(new_value)) {
-                                            ret[cell].push(new_value)
-                                        }
-                                    } else {
-                                        ret[cell] = [new_value];
-                                    }
-                                }
-                                // merge with the sub-result
-                                for (const cell in sub_result) {
-                                    if (!sub_result.hasOwnProperty(cell)) {
-                                        continue;
-                                    }
-                                    if (cell in ret) {
-                                        for (const val of sub_result[cell]) {
-                                            if (!ret[cell].includes(val)) {
-                                                ret[cell].push(val)
-                                            }
-                                        }
-                                    } else {
-                                        ret[cell] = sub_result[cell];
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                return ret;
-            }
-            // end of search function
 
-            let ret = searchFunction(0, 0);
+            // start searching
+            let ret = searchFunction(0, 0, keys, initial_state);
             if (ret === null) {
                 console.error("A search returned null!!", task_type, row_or_col);
             } else {
@@ -263,3 +277,5 @@ let addSolveButton = function () {
 }
 
 window.addEventListener('load', addSolveButton, false);
+
+})();
