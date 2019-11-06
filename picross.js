@@ -172,6 +172,7 @@ let solvePuzzle = function (puzzle) {
         task_set.add(task);
     }
     // start searching
+    let solution = [];
     while (task_set.size != 0) {
         let new_tasks = new Set();
 
@@ -225,13 +226,7 @@ let solvePuzzle = function (puzzle) {
                             row = cell; col = row_or_col;
                         }
                         console.info("Found solution!!", row, col, val[0]);
-                        let obj = $($('#puzzle tbody > tr')[row + 1]).find('td')[col + 1];
-                        let _which = (val[0] == STATE_ON) ? 1 : 3;
-                        $(obj).trigger(
-                            {type: 'mousedown', target: obj, which: _which}
-                        ).trigger(
-                            {type: 'mouseup', target: obj, which: _which}
-                        );
+                        solution.push([row, col, val[0]]);
                     }
                 }
             }
@@ -263,6 +258,24 @@ let solvePuzzle = function (puzzle) {
             task_set.add(new_task);
         }
     }
+
+    return solution;
+}
+
+let applySolution = function (solution) {
+    let _clicker = function (step_data) {
+        let obj = $($('#puzzle tbody > tr')[step_data[0] + 1]).find('td')[step_data[1] + 1];
+        let _which = (step_data[2] == STATE_ON) ? 1 : 3;
+        $(obj).trigger(
+            {type: 'mousedown', target: obj, which: _which}
+        ).trigger(
+            {type: 'mouseup', target: obj, which: _which}
+        );
+    }
+    for (let step = 0; step < solution.length; step++) {
+        const step_data = solution[step];
+        setTimeout(_clicker.bind(undefined, step_data), (step + 1) * 100);
+    }
 }
 
 let addSolveButton = function () {
@@ -271,7 +284,8 @@ let addSolveButton = function () {
     button.mouseup(function() {
         let puzzle = loadPuzzle();
         console.info(puzzle);
-        solvePuzzle(puzzle);
+        let solution = solvePuzzle(puzzle);
+        applySolution(solution);
     });
     button.appendTo(container);
 }
